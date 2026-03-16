@@ -62,6 +62,7 @@ void test() {
 }
 
 int main(int argc, char **argv) {
+    tus_init(0);
     test();
     exit(0);
     int *tids;
