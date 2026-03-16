@@ -175,6 +175,7 @@ int tus_yield(int tid) {
     if (cur_tid == caller_tid) {
         // Load context of new_tcb
         new_tcb->state = RUNNING;
+        cur_tid = tid;
         setcontext(&new_tcb->context);
     }
     return tid;
