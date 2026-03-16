@@ -191,7 +191,7 @@ void tus_exit() {
     }
     // If execution reaches here this is the last runnable thread
     for (int i = 0; i < TUS_MAXTHREADS; i++) {
-        if (!threads[i] && threads[i]->state == WAITING) {
+        if (threads[i] && threads[i]->state == WAITING) {
             printf("Warning: thread %d is waiting at program termination.\n", i);
         }
     }
