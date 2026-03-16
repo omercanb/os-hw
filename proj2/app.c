@@ -33,6 +33,7 @@ void *foo(void *v) {
 void *test(void *args) {
     char *str = (char *)args;
     printf("From test: %s\n", str);
+    fflush(stdout);
     return 0;
 }
 
