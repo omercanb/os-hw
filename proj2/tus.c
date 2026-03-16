@@ -88,6 +88,7 @@ int tus_yield(int tid) {
 }
 
 void tus_exit() {
+    exit(1);
     return;
 }
 
