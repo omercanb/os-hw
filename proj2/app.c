@@ -53,7 +53,6 @@ void *argument_passing(void *arg) {
 }
 
 void test() {
-    simple();
     test_struct t;
     t.a = 10;
     t.b = 5;
