@@ -90,6 +90,7 @@ int main(int argc, char **argv) {
     // test_main_thread_exit();
     int a = tus_create_thread(worker_a, NULL);
     tus_yield(a);
+    tus_exit();
     exit(0);
     int *tids;
     int i;
