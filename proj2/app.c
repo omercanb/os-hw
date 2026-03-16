@@ -30,7 +30,7 @@ void *foo(void *v) {
     return (NULL);
 }
 
-void *test(void *args) {
+void *simple_worker(void *args) {
     char *str = (char *)args;
     printf("From test: %s\n", str);
     fflush(stdout);
@@ -38,11 +38,30 @@ void *test(void *args) {
 }
 
 void simple() {
-    tus_create_thread(test, "Hello world");
+    tus_create_thread(simple_worker, "Hello world");
+}
+
+typedef struct {
+    int a;
+    int b;
+    char *str;
+} test_struct;
+
+void argument_passing(test_struct *test) {
+    printf("a: %d, b:%d, str:%s\n", test->a, test->b, test->str);
+}
+
+void test() {
+    simple();
+    test_struct t;
+    t.a = 10;
+    t.b = 5;
+    t.str = "Hello world";
+    tus_create_thread(argument_passing, &t);
 }
 
 int main(int argc, char **argv) {
-    simple();
+    test();
     exit(0);
     int *tids;
     int i;
