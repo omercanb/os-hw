@@ -91,8 +91,9 @@ int tus_create_thread(void *(*tsf)(void *), void *targ) {
 
 void stub(void *(*tsf)(void *), void *targ) {
     // to align stack pointer
-    printf("Were in here\n");
     __asm__ volatile("and $-16, %rsp");
+    printf("Were in here\n");
+    fflush(stdout);
     // new thread will start its execution here
     // then we will call the thread start function
     tsf(targ); // calling the thread start function
