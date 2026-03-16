@@ -13,6 +13,9 @@
 void *worker_a();
 void *worker_b();
 void *worker_c();
+void *worker_d();
+void *worker_e();
+void *worker_f();
 
 void *foo(void *v) {
     int count = 1;
