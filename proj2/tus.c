@@ -136,7 +136,6 @@ void stub(void *(*tsf)(void *), void *targ) {
     // to align stack pointer
     __asm__ volatile("and $-16, %rsp");
     printf("Were in here\n");
-    fflush(stdout);
     // new thread will start its execution here
     // then we will call the thread start function
     tsf(targ); // calling the thread start function
@@ -157,6 +156,7 @@ int save_context(int tid, int state) {
     threads[tid]->state = state;
 }
 
+// TODO check that this works correctly in app
 int tus_yield(int tid) {
     assert(tid != 0);
     // Search for tcb with tid
