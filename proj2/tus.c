@@ -119,12 +119,12 @@ int tus_create_thread(void *(*tsf)(void *), void *targ) {
     if (!tcb) {
         return TUS_ERROR;
     }
+    num_threads++;
     int tid = num_threads;
     tcb->state = READY;
     tcb->context = context;
     threads[tid] = tcb;
 
-    num_threads++;
     // set context with the new context
     // // TODO this bottom line will be removed
     // setcontext(&context);
