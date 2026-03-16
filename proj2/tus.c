@@ -156,7 +156,6 @@ int save_context(int tid, int state) {
     threads[tid]->state = state;
 }
 
-// TODO check that this works correctly in app
 int tus_yield(int tid) {
     assert(tid != 0);
     // Search for tcb with tid
