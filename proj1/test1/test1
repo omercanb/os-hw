@@ -1,0 +1,5 @@
+all: findlw
+prog: findlw.c
+	gcc -Wall -g -o findlw findlw.c
+clean:
+	rm -fr findlw findlw.o *~
