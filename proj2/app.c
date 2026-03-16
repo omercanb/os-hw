@@ -81,9 +81,9 @@ void *worker_c() {
     printf("worker_c\n");
     return 0;
 }
-
+int e;
 void *worker_d() {
-    int e = tus_create_thread(worker_e, NULL);
+    e = tus_create_thread(worker_e, NULL);
     int ret = tus_join(e);
     assert(e == ret);
     printf("worker_d\n");
@@ -93,7 +93,9 @@ void *worker_d() {
 
 void *worker_e() {
     int f = tus_create_thread(worker_f, NULL);
-    int ret = tus_join(f);
+    printf("yielding from e to f\n");
+    int ret = tus_yield(f);
+    ret = tus_join(f);
     assert(f == ret);
     printf("worker_e\n");
     tus_exit();
@@ -101,6 +103,8 @@ void *worker_e() {
 }
 
 void *worker_f() {
+    printf("yielding from f to e\n");
+    tus_yield(e);
     printf("worker_f\n");
     tus_exit();
     return 0;
