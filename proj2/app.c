@@ -57,7 +57,7 @@ void test() {
     t.a = 10;
     t.b = 5;
     t.str = "Hello world";
-    tus_create_thread(argument_passing, &t);
+    int tid1 = tus_create_thread(argument_passing, &t);
 }
 
 int main(int argc, char **argv) {

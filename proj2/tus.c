@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <malloc.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -41,7 +42,6 @@
 // these additional functions will not be available for
 // applications directly.
 //
-int num_threads = 0;
 
 int tus_init(int salg);
 int tus_create_thread(void *(*tsf)(void *), void *targ);
@@ -52,11 +52,42 @@ int tus_cancel(int tid);
 int tus_gettid();
 void stub(void *(*tsf)(void *), void *targ);
 
+enum state { RUNNING,
+             WAITING,
+             READY,
+             TERMINATED };
+
+typedef struct TCB {
+    // id is the index in threads
+    unsigned int state; // running / waiting / ready / terminated
+    ucontext_t context; // cpu context
+} TCB;
+
+TCB *threads[TUS_MAXTHREADS];
+int num_threads = 0;
+int cur_tid = NULL;
+
 int tus_init(int salg) {
-    return (0);
-    // we put return(0) as a placeholder.
-    // read project about what to return.
-    // and change return() accordingly.
+    // Put main as the first thread
+    // Get this current context
+    ucontext_t context;
+    long ret;
+    ret = getcontext(&context);
+    if (ret) {
+        return TUS_ERROR;
+    }
+    // char *stack = (char *)context.uc_mcontext.gregs[REG_RSP];
+    TCB *tcb = calloc(1, sizeof(TCB));
+    if (!tcb) {
+        return TUS_ERROR;
+    }
+    tcb->state = RUNNING;
+    tcb->context = context;
+    threads[0] = tcb;
+    cur_tid = 0;
+
+    num_threads++;
+    return 0;
 }
 
 int tus_create_thread(void *(*tsf)(void *), void *targ) {
@@ -79,14 +110,25 @@ int tus_create_thread(void *(*tsf)(void *), void *targ) {
         return TUS_ERROR;
     }
 
-    num_threads++;
     context.uc_mcontext.gregs[REG_RSP] = (long long)(stack + TUS_STACKSIZE - 1);
     // Put into rdi and rsi the first and second arguments for stub (these are this functions arguments)
     context.uc_mcontext.gregs[REG_RDI] = (long long)tsf;
     context.uc_mcontext.gregs[REG_RSI] = (long long)targ;
+    // Create a TCB block
+    TCB *tcb = calloc(1, sizeof(TCB));
+    if (!tcb) {
+        return TUS_ERROR;
+    }
+    int tid = num_threads;
+    tcb->state = READY;
+    tcb->context = context;
+    threads[tid] = tcb;
+
+    num_threads++;
     // set context with the new context
-    setcontext(&context);
-    return 0;
+    // // TODO this bottom line will be removed
+    // setcontext(&context);
+    return tid;
 }
 
 void stub(void *(*tsf)(void *), void *targ) {
@@ -102,12 +144,58 @@ void stub(void *(*tsf)(void *), void *targ) {
     tus_exit(); // terminate
 }
 
+int save_context(int tid, int state) {
+    // Get this current context
+    ucontext_t context;
+    long ret;
+    ret = getcontext(&context);
+    if (ret) {
+        return TUS_ERROR;
+    }
+    threads[tid]->context = context;
+    threads[tid]->state = state;
+}
+
 int tus_yield(int tid) {
-    return (0);
+    assert(tid != 0);
+    // Search for tcb with tid
+    TCB *new_tcb = threads[tid];
+    if (!new_tcb || new_tcb->state != READY) {
+        return -1;
+    }
+    if (cur_tid == tid) {
+        return -1;
+    }
+    int caller_tid = cur_tid;
+    // Save context of calling thread to threads[tid]
+    // cur thread eventually returns to save context
+    save_context(caller_tid, READY);
+    // cur tid = caller tid means this is the first execution
+    // after it the cur tid will be set to the yielded thread or another one
+    if (cur_tid == caller_tid) {
+        // Load context of new_tcb
+        new_tcb->state = RUNNING;
+        setcontext(&new_tcb->context);
+    }
+    return tid;
 }
 
 void tus_exit() {
-    _exit(1);
+    threads[cur_tid]->state = TERMINATED;
+    for (int i = 0; i < TUS_MAXTHREADS; i++) {
+        if (!threads[i] || threads[i]->state != READY) {
+            continue;
+        }
+        threads[i]->state = RUNNING;
+        setcontext(&threads[i]->context);
+    }
+    // If execution reaches here this is the last runnable thread
+    for (int i = 0; i < TUS_MAXTHREADS; i++) {
+        if (!threads[i] && threads[i]->state == WAITING) {
+            printf("Warning: thread %d is waiting at program termination.\n", i);
+        }
+    }
+    exit(0);
     return;
 }
 
