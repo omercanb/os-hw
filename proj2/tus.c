@@ -80,7 +80,7 @@ int tus_create_thread(void *(*tsf)(void *), void *targ) {
     }
 
     num_threads++;
-    context.uc_mcontext.gregs[REG_RSP] = (long long)stack;
+    context.uc_mcontext.gregs[REG_RSP] = (long long)(stack + TUS_STACKSIZE - 1);
     // Put into rdi and rsi the first and second arguments for stub (these are this functions arguments)
     context.uc_mcontext.gregs[REG_RDI] = (long long)tsf;
     context.uc_mcontext.gregs[REG_RSI] = (long long)targ;
