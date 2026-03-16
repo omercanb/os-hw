@@ -47,7 +47,8 @@ typedef struct {
     char *str;
 } test_struct;
 
-void *argument_passing(test_struct *test) {
+void *argument_passing(void *arg) {
+    test_struct *test = arg;
     printf("a: %d, b:%d, str:%s\n", test->a, test->b, test->str);
 }
 
