@@ -170,7 +170,12 @@ int tus_yield(int tid) {
     int caller_tid = cur_tid;
     // Save context of calling thread to threads[tid]
     // cur thread eventually returns to save context
-    save_context(caller_tid, READY);
+    threads[caller_tid]->state = READY;
+    long ret;
+    ret = getcontext(&threads[caller_tid]->context);
+    if (ret) {
+        return TUS_ERROR;
+    }
     // cur tid = caller tid means this is the first execution
     // after it the cur tid will be set to the yielded thread or another one
     printf("cur: %d, caller: %d\n", cur_tid, caller_tid);
