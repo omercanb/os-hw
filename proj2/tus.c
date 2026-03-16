@@ -173,12 +173,14 @@ int tus_yield(int tid) {
     save_context(caller_tid, READY);
     // cur tid = caller tid means this is the first execution
     // after it the cur tid will be set to the yielded thread or another one
+    printf("cur: %d, caller: %d\n", cur_tid, caller_tid);
     if (cur_tid == caller_tid) {
         // Load context of new_tcb
         new_tcb->state = RUNNING;
         cur_tid = tid;
         setcontext(&new_tcb->context);
     }
+
     return tid;
 }
 

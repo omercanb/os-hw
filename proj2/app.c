@@ -62,6 +62,7 @@ void *worker_a() {
     int ret = tus_yield(b);
     assert(b == ret);
     tus_exit();
+    printf("worker_a_v2\n");
     return 0;
 }
 
