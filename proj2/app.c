@@ -10,6 +10,10 @@
 #define MAXCOUNT 1000
 #define YIELDPERIOD 100
 
+void *worker_a();
+void *worker_b();
+void *worker_c();
+
 void *foo(void *v) {
     int count = 1;
     int mytid;
@@ -52,7 +56,26 @@ void *argument_passing(void *arg) {
     printf("a: %d, b:%d, str:%s\n", test->a, test->b, test->str);
 }
 
-void test() {
+void *worker_a() {
+    int b = tus_create_thread(worker_b, NULL);
+    tus_yield(b);
+    printf("worker_a\n");
+    tus_exit();
+    return 0;
+}
+
+void *worker_b() {
+    printf("worker_b\n");
+    tus_exit();
+    return 0;
+}
+
+void *worker_c() {
+    printf("worker_c\n");
+    return 0;
+}
+
+void test_main_thread_exit() {
     test_struct t;
     t.a = 10;
     t.b = 5;
@@ -63,7 +86,9 @@ void test() {
 
 int main(int argc, char **argv) {
     tus_init(0);
-    test();
+    // test_main_thread_exit();
+    int a = tus_create_thread(worker_a, NULL);
+    tus_yield(a);
     exit(0);
     int *tids;
     int i;
