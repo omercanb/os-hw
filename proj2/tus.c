@@ -52,7 +52,8 @@ int tus_cancel(int tid);
 int tus_gettid();
 void stub(void *(*tsf)(void *), void *targ);
 
-enum state { RUNNING,
+enum state { INVALID,
+             RUNNING,
              WAITING,
              READY,
              TERMINATED };
@@ -119,11 +120,11 @@ int tus_create_thread(void *(*tsf)(void *), void *targ) {
     if (!tcb) {
         return TUS_ERROR;
     }
-    num_threads++;
     int tid = num_threads;
     tcb->state = READY;
     tcb->context = context;
     threads[tid] = tcb;
+    num_threads++;
 
     // set context with the new context
     // // TODO this bottom line will be removed
@@ -187,6 +188,7 @@ void tus_exit() {
     for (int i = 0; i < TUS_MAXTHREADS; i++) {
         if (threads[i]) {
             assert(threads[i]->state != RUNNING);
+            assert(threads[i]->state != INVALID);
         }
     }
     for (int i = 0; i < TUS_MAXTHREADS; i++) {
@@ -194,6 +196,7 @@ void tus_exit() {
             continue;
         }
         threads[i]->state = RUNNING;
+        cur_tid = i;
         setcontext(&threads[i]->context);
     }
     // If execution reaches here this is the last runnable thread
