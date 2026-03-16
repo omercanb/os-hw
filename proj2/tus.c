@@ -182,6 +182,12 @@ int tus_yield(int tid) {
 
 void tus_exit() {
     threads[cur_tid]->state = TERMINATED;
+    // There should be no running threads at this point
+    for (int i = 0; i < TUS_MAXTHREADS; i++) {
+        if (threads[i]) {
+            assert(threads[i]->state != RUNNING);
+        }
+    }
     for (int i = 0; i < TUS_MAXTHREADS; i++) {
         if (!threads[i] || threads[i]->state != READY) {
             continue;
