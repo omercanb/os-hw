@@ -137,7 +137,6 @@ int tus_create_thread(void *(*tsf)(void *), void *targ) {
 void stub(void *(*tsf)(void *), void *targ) {
     // to align stack pointer
     __asm__ volatile("and $-16, %rsp");
-    printf("Were in here\n");
     // new thread will start its execution here
     // then we will call the thread start function
     tsf(targ); // calling the thread start function
@@ -167,7 +166,6 @@ int tus_yield(int tid) {
     }
     // cur tid = caller tid means this is the first execution
     // after it the cur tid will be set to the yielded thread or another one
-    printf("cur: %d, caller: %d\n", cur_tid, caller_tid);
     if (threads[cur_tid]->state == READY) {
         // Load context of new_tcb
         new_tcb->state = RUNNING;
