@@ -58,9 +58,9 @@ void *argument_passing(void *arg) {
 
 void *worker_a() {
     int b = tus_create_thread(worker_b, NULL);
+    printf("worker_a\n");
     int ret = tus_yield(b);
     assert(b == ret);
-    printf("worker_a\n");
     tus_exit();
     return 0;
 }
