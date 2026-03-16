@@ -65,7 +65,7 @@ typedef struct TCB {
 
 TCB *threads[TUS_MAXTHREADS];
 int num_threads = 0;
-int cur_tid = NULL;
+int cur_tid = 0;
 
 int tus_init(int salg) {
     // Put main as the first thread

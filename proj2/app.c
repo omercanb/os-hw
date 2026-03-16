@@ -58,6 +58,7 @@ void test() {
     t.b = 5;
     t.str = "Hello world";
     int tid1 = tus_create_thread(argument_passing, &t);
+    tus_exit();
 }
 
 int main(int argc, char **argv) {
