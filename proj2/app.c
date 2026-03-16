@@ -79,6 +79,30 @@ void *worker_c() {
     return 0;
 }
 
+void *worker_d() {
+    int e = tus_create_thread(worker_e, NULL);
+    int ret = tus_join(e);
+    assert(e == ret);
+    printf("worker_d\n");
+    tus_exit();
+    return 0;
+}
+
+void *worker_e() {
+    int f = tus_create_thread(worker_f, NULL);
+    int ret = tus_join(f);
+    assert(f == ret);
+    printf("worker_e\n");
+    tus_exit();
+    return 0;
+}
+
+void *worker_f() {
+    printf("worker_f\n");
+    tus_exit();
+    return 0;
+}
+
 void test_main_thread_exit() {
     test_struct t;
     t.a = 10;
@@ -91,8 +115,11 @@ void test_main_thread_exit() {
 int main(int argc, char **argv) {
     tus_init(0);
     // test_main_thread_exit();
-    int a = tus_create_thread(worker_a, NULL);
-    tus_yield(a);
+    // int a = tus_create_thread(worker_a, NULL);
+    // tus_yield(a);
+    int d = tus_create_thread(worker_d, NULL);
+    int ret = tus_join(d);
+    assert(d == ret);
     tus_exit();
     exit(0);
     int *tids;

@@ -62,11 +62,13 @@ typedef struct TCB {
     // id is the index in threads
     unsigned int state; // running / waiting / ready / terminated
     ucontext_t context; // cpu context
+    int waiting_for;    // the tid of the thread thats waited for with join
 } TCB;
 
 TCB *threads[TUS_MAXTHREADS];
 int num_threads = 0;
 int cur_tid = 0;
+bool initialized = false;
 
 int tus_init(int salg) {
     // Put main as the first thread
@@ -84,14 +86,17 @@ int tus_init(int salg) {
     }
     tcb->state = RUNNING;
     tcb->context = context;
+    tcb->waiting_for = -1;
     threads[0] = tcb;
     cur_tid = 0;
 
     num_threads++;
+    initialized = true;
     return 0;
 }
 
 int tus_create_thread(void *(*tsf)(void *), void *targ) {
+    assert(initialized);
     if (num_threads == TUS_MAXTHREADS) {
         return TUS_ERROR;
     }
@@ -123,12 +128,9 @@ int tus_create_thread(void *(*tsf)(void *), void *targ) {
     int tid = num_threads;
     tcb->state = READY;
     tcb->context = context;
+    tcb->waiting_for = -1;
     threads[tid] = tcb;
     num_threads++;
-
-    // set context with the new context
-    // // TODO this bottom line will be removed
-    // setcontext(&context);
     return tid;
 }
 
@@ -142,18 +144,6 @@ void stub(void *(*tsf)(void *), void *targ) {
     // tsf will retun to here
     // now ask for termination
     tus_exit(); // terminate
-}
-
-int save_context(int tid, int state) {
-    // Get this current context
-    ucontext_t context;
-    long ret;
-    ret = getcontext(&context);
-    if (ret) {
-        return TUS_ERROR;
-    }
-    threads[tid]->context = context;
-    threads[tid]->state = state;
 }
 
 int tus_yield(int tid) {
@@ -198,6 +188,12 @@ void tus_exit() {
         }
     }
     for (int i = 0; i < TUS_MAXTHREADS; i++) {
+        if (threads[i] && threads[i]->waiting_for == cur_tid) {
+            threads[i]->state = READY;
+            threads[i]->waiting_for = -1;
+        }
+    }
+    for (int i = 0; i < TUS_MAXTHREADS; i++) {
         if (!threads[i] || threads[i]->state != READY) {
             continue;
         }
@@ -216,13 +212,57 @@ void tus_exit() {
 }
 
 int tus_join(int tid) {
-    return (0);
+    assert(tid != 0);
+    // Search for tcb with tid
+    TCB *new_tcb = threads[tid];
+    if (!new_tcb) {
+        return -1;
+    }
+    if (new_tcb->state == TERMINATED) {
+        free(new_tcb);
+        threads[tid] = NULL;
+        return tid;
+    }
+
+    if (cur_tid == tid) {
+        return -1;
+    }
+
+    int caller_tid = cur_tid;
+    // Save context of calling thread to threads[tid]
+    // cur thread eventually returns to save context
+    threads[caller_tid]->state = WAITING;
+    threads[caller_tid]->waiting_for = tid;
+    long ret;
+    ret = getcontext(&threads[caller_tid]->context);
+    if (ret) {
+        return TUS_ERROR;
+    }
+    // cur tid = caller tid means this is the first execution
+    // after it the cur tid will be set to the yielded thread or another one
+    if (threads[cur_tid]->state == WAITING) {
+        // Load context of new_tcb
+        new_tcb->state = RUNNING;
+        cur_tid = tid;
+        setcontext(&new_tcb->context);
+    }
+    assert(threads[cur_tid]->waiting_for == -1);
+    return tid;
 }
 
 int tus_cancel(int tid) {
-    return (0);
+    TCB *cancel_tcb = threads[tid];
+    if (!cancel_tcb) {
+        return -1;
+    }
+    // Tries to cancel itself
+    if (cur_tid == tid) {
+        return -1;
+    }
+    cancel_tcb->state = TERMINATED;
+    return 0;
 }
 
 int tus_gettid() {
-    return (0);
+    return cur_tid;
 }
