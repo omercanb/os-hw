@@ -526,7 +526,6 @@ void test_join_cancel() {
     // now run A, a should not block on the join now
     tus_yield(a_tid);
     printf("main: done\n");
-    tus_exit();
 }
 
 // Test: stack placement
