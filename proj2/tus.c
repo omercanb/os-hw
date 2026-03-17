@@ -257,7 +257,7 @@ int tus_join(int tid) {
     // If the waited for task is ready switch to it, if not schedule
     TCB *cur_thread = thread_get(cur_tid);
     // if (cur_thread && cur_thread->state == WAITING) {
-    if (waited_thread->waited_for_by == -1) {
+    if (waited_thread->waited_for_by != -1) {
         // Always queue the caller thread
         enqueue(caller);
         if (waited_thread->state == READY) {
