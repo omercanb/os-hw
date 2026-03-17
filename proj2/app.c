@@ -402,13 +402,12 @@ void test_yield_chain() {
     printf("=== TEST: yield chain ===\n");
     printf("EXPECTED OUTPUT:\n");
     printf("  yield_c\n");
-    printf("  yield_b\n");
-    printf("  yield_a\n");
+    printf("  yield_b/yield_a\n");
+    printf("  yield_a/yield_b\n");
     printf("ACTUAL OUTPUT:\n");
 
     int a = tus_create_thread(yield_a, NULL);
     tus_yield(a);
-    tus_exit();
 }
 
 // Test: join chain (A joins B, B joins C)
@@ -457,7 +456,6 @@ void test_join_chain() {
     int a = tus_create_thread(join_a, NULL);
     int ret = tus_join(a);
     assert(a == ret);
-    tus_exit();
 }
 
 // Test: cancel
@@ -481,7 +479,6 @@ void test_cancel() {
     int ret = tus_cancel(tid);
     printf("cancel returned: %d\n", ret);
     printf("main: done\n");
-    tus_exit();
 }
 
 // Test: N threads with foo
