@@ -363,7 +363,7 @@ void *argument_passing(void *arg) {
 void test_argument_passing() {
     printf("=== TEST: argument passing ===\n");
     printf("EXPECTED OUTPUT:\n");
-    printf("a: 10, b:5, str:Hello world\n");
+    printf("    a: 10, b:5, str:Hello world\n");
     printf("ACTUAL OUTPUT:\n");
 
     test_struct t = {.a = 10, .b = 5, .str = "Hello world"};
@@ -449,6 +449,8 @@ void test_join_chain() {
     printf("  yielding from join_b to join_c\n");
     printf("  yielding from join_c to join_b\n");
     printf("  join_c\n");
+    printf("  yield_a\n");
+    printf("  yield_b\n");
     printf("  join_b\n");
     printf("  join_a\n");
     printf("ACTUAL OUTPUT:\n");
