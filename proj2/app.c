@@ -7,7 +7,7 @@
 // this is a sample application that is using tsl library to
 // create and work with threads.
 
-#define MAXCOUNT 1000
+#define MAXCOUNT 5
 #define YIELDPERIOD 100
 
 void *worker_a();
