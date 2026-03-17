@@ -195,8 +195,8 @@ int tus_yield(int yielded_tid) {
 }
 
 void tus_exit() {
-    TCB *tcb = thread_get(cur_tid);
-    tcb->state = TERMINATED;
+    TCB *thread = thread_get(cur_tid);
+    thread->state = TERMINATED;
     // There should be no running threads at this point
     for (int i = 0; i < TUS_MAXTHREADS; i++) {
         if (_threads[i]) {
@@ -204,9 +204,8 @@ void tus_exit() {
             assert(_threads[i]->state != INVALID);
         }
     }
-    if (tcb->waited_for_by != -1) {
-        TCB *thread_no_longer_waiting = thread_get(tcb->waited_for_by);
-        thread_no_longer_waiting->waited_for_by = -1;
+    if (thread->waited_for_by != -1) {
+        TCB *thread_no_longer_waiting = thread_get(thread->waited_for_by);
         enqueue(thread_no_longer_waiting);
     }
     if (num_queued) {
