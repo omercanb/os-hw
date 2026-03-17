@@ -122,12 +122,12 @@ void test_main_thread_exit() {
 
 int main(int argc, char **argv) {
     tus_init(ALG_FCFS);
-    // test_main_thread_exit();
+    test_main_thread_exit();
     // int a = tus_create_thread(worker_a, NULL);
     // tus_yield(a);
-    int d = tus_create_thread(worker_d, NULL);
-    int ret = tus_join(d);
-    assert(d == ret);
+    // int d = tus_create_thread(worker_d, NULL);
+    // int ret = tus_join(d);
+    // assert(d == ret);
     tus_exit();
     exit(0);
     int *tids;
