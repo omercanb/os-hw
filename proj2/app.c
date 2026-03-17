@@ -530,7 +530,7 @@ void test_join_cancel() {
 
 // Test: stack placement
 void *test_stack() {
-    printf("=== TEST: stack values working propperly ===");
+    printf("=== TEST: stack values working properly ===\n");
     volatile int a = 0xDEADBEEF;
     volatile int b = 0xCAFEBABE;
     volatile int c = 0x12345678;
@@ -547,8 +547,6 @@ void *test_stack() {
 
     long long rsp = ctx.uc_mcontext.gregs[REG_RSP];
 
-    printf("\nRSP = 0x%llx\n", rsp);
-    printf("\nreading from stack at each address:\n");
     printf("a = 0x%X\n", *(volatile int *)&a);
     printf("b = 0x%X\n", *(volatile int *)&b);
     printf("c = 0x%X\n", *(volatile int *)&c);
