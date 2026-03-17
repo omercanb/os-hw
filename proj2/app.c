@@ -483,6 +483,49 @@ void test_cancel() {
     printf("main: done\n");
 }
 
+// Test: join then cancel (thread waiting via join on a thread that gets cancelled by a third thread)
+int join_cancel_b_tid;
+
+void *join_cancel_worker_b(void *arg) {
+    printf("B: running, yielding back to main\n");
+    tus_yield(TUS_ANY);
+    printf("B: resumed after yield (BAD - should have been cancelled)\n");
+    return NULL;
+}
+
+void *join_cancel_worker_a(void *arg) {
+    printf("A: joining on B (tid=%d)\n", join_cancel_b_tid);
+    int ret = tus_join(join_cancel_b_tid);
+    printf("A: join returned %d (expected %d)\n", ret, join_cancel_b_tid);
+    return NULL;
+}
+
+void test_join_cancel() {
+    printf("=== TEST: join then cancel ===\n");
+    printf("EXPECTED OUTPUT:\n");
+    printf("  B: running, yielding back to main\n");
+    printf("  A: joining on B (tid=<B>)\n");
+    printf("  main: cancelling B, ret=0\n");
+    printf("  A: join returned <B> (expected <B>)\n");
+    printf("  main: done\n");
+    printf("ACTUAL OUTPUT:\n");
+
+    join_cancel_b_tid = tus_create_thread(join_cancel_worker_b, NULL);
+    int a_tid = tus_create_thread(join_cancel_worker_a, NULL);
+
+    // let B run first so it's alive when A tries to join
+    tus_yield(join_cancel_b_tid);
+    // B yielded back to main; now let A run — A will join on B and block
+    tus_yield(a_tid);
+    // A is now WAITING on B; main is running again
+    int ret = tus_cancel(join_cancel_b_tid);
+    printf("main: cancelling B, ret=%d\n", ret);
+    // A should wake up now since B is terminated
+    tus_yield(a_tid);
+    printf("main: done\n");
+    tus_exit();
+}
+
 // Test: N threads with foo
 void test_n_threads(int numthreads) {
     printf("=== TEST: %d threads running foo ===\n", numthreads);
@@ -517,6 +560,7 @@ int main(int argc, char **argv) {
         test_yield_chain();
         test_join_chain();
         test_cancel();
+        test_join_cancel();
     }
 
     return 0;
