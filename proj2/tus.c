@@ -91,7 +91,9 @@ int num_queued = 0;
 int scheduling_alg = ALG_FCFS;
 
 int tus_init(int salg) {
+    assert(salg == ALG_FCFS || salg == ALG_RANDOM);
     if (initialized) {
+        scheduling_alg = salg;
         return -1;
     }
     // Put main as the first thread
