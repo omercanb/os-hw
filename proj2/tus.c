@@ -177,7 +177,7 @@ int tus_yield(int yielded_tid) {
     // cur thread eventually returns to save context
     enqueue(caller);
     caller->yielded = false;
-    long ret = getcontext(&yielded_thread->context);
+    long ret = getcontext(&caller->context);
     if (ret) {
         return TUS_ERROR;
     }
@@ -374,7 +374,6 @@ TCB *thread_get(int tid) {
 }
 
 void thread_remove(TCB *thread) {
-    // TODO free stack as well
     _threads[thread->tid] = NULL;
     queue_remove_thread(thread->tid);
     free(thread->stack);
