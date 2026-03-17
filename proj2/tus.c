@@ -91,6 +91,9 @@ int num_queued = 0;
 int scheduling_alg = ALG_FCFS;
 
 int tus_init(int salg) {
+    if (initialized) {
+        return -1;
+    }
     // Put main as the first thread
     // Get this current context
     scheduling_alg = salg;
@@ -354,6 +357,7 @@ bool queue_remove_thread(int tid) {
 // Used when you create a new thread
 // This thread should be ready to execute
 void thread_add(TCB *tcb) {
+    assert(num_threads < TUS_MAXTHREADS);
     for (int i = 0; i < TUS_MAXTHREADS; i++) {
         if (_threads[i] == NULL) {
             _threads[i] = tcb;
