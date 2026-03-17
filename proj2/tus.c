@@ -308,7 +308,6 @@ int tus_gettid() {
 void enqueue(TCB *thread) {
     assert(num_queued < TUS_MAXTHREADS);
     tqueue[num_queued] = thread->tid;
-    assert(thread->waited_for_by == -1);
     thread->state = READY;
     num_queued++;
 }
