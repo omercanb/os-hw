@@ -222,7 +222,7 @@ void tus_exit() {
 void stop_waiting_for_thread(TCB *thread) {
     if (thread->waited_for_by != -1) {
         TCB *thread_no_longer_waiting = thread_get(thread->waited_for_by);
-        thread->waited_for_by = 1;
+        thread->waited_for_by = -1;
         enqueue(thread_no_longer_waiting);
     }
 }
@@ -264,8 +264,6 @@ int tus_join(int tid) {
     TCB *cur_thread = thread_get(cur_tid);
     // if (cur_thread && cur_thread->state == WAITING) {
     if (waited_thread->waited_for_by != -1) {
-        // Always queue the caller thread
-        enqueue(caller);
         if (waited_thread->state == READY) {
             // If the waited for thread is ready enqueue the caller and switch to the waited on thread
             switch_to(tid);
