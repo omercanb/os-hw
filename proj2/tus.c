@@ -72,6 +72,7 @@ void enqueue(TCB *thread);
 int dequeue();
 void queue_remove_index(int q_index);
 bool queue_remove_thread(int tid);
+void stop_waiting_for_thread(TCB *thread);
 
 void thread_add(TCB *thread);
 TCB *thread_get(int tid);
@@ -204,11 +205,7 @@ void tus_exit() {
             assert(_threads[i]->state != INVALID);
         }
     }
-    if (thread->waited_for_by != -1) {
-        TCB *thread_no_longer_waiting = thread_get(thread->waited_for_by);
-        thread->waited_for_by = 1;
-        enqueue(thread_no_longer_waiting);
-    }
+    stop_waiting_for_thread(thread);
     if (num_queued) {
         switch_to(dequeue());
     } else {
@@ -219,6 +216,14 @@ void tus_exit() {
             }
         }
         exit(0);
+    }
+}
+
+void stop_waiting_for_thread(TCB *thread) {
+    if (thread->waited_for_by != -1) {
+        TCB *thread_no_longer_waiting = thread_get(thread->waited_for_by);
+        thread->waited_for_by = 1;
+        enqueue(thread_no_longer_waiting);
     }
 }
 
@@ -298,6 +303,7 @@ int tus_cancel(int tid) {
         return -1;
     }
     queue_remove_thread(tid);
+    stop_waiting_for_thread(cancelled_thread);
     cancelled_thread->state = TERMINATED;
 
     return 0;
