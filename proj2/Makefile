@@ -29,6 +29,7 @@ app.o: app.c  tus.h
 app: app.o libtus.a
 	gcc $(CFLAGS) -o $@ app.o  $(TUS_LIB)
 
+
 clean:
 	rm -rf core  *.o *.out *~ $(TARGETS)
 	
