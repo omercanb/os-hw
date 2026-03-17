@@ -488,7 +488,7 @@ int join_cancel_b_tid;
 
 void *join_cancel_worker_b(void *arg) {
     printf("B: running, yielding back to main\n");
-    tus_yield(TUS_ANY);
+    tus_yield(TID_MAIN);
     printf("B: resumed after yield (BAD - should have been cancelled)\n");
     return NULL;
 }
