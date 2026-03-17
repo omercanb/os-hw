@@ -269,6 +269,7 @@ int tus_join(int tid) {
     }
     // Deallocate the waited thread
     // We assume we only one threads waits for a given threads
+    printf("%d\n", waited_thread->state);
     assert(waited_thread->state == TERMINATED);
     assert(waited_thread->waited_for_by == -1);
     thread_remove(waited_thread);
