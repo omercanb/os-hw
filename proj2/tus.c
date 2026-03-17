@@ -43,15 +43,6 @@
 // applications directly.
 //
 
-int tus_init(int salg);
-int tus_create_thread(void *(*tsf)(void *), void *targ);
-int tus_yield(int tid);
-void tus_exit();
-int tus_join(int tid);
-int tus_cancel(int tid);
-int tus_gettid();
-void stub(void *(*tsf)(void *), void *targ);
-
 enum state { INVALID,
              RUNNING,
              WAITING,
@@ -60,38 +51,59 @@ enum state { INVALID,
 
 typedef struct TCB {
     // id is the index in threads
+    int tid;
     unsigned int state; // running / waiting / ready / terminated
     ucontext_t context; // cpu context
-    int waiting_for;    // the tid of the thread thats waited for with join
+    int waited_for_by;  // the tid of the thread thats waited for with join
+    char *stack;
+    bool yielded;
 } TCB;
 
-TCB *threads[TUS_MAXTHREADS];
+int tus_init(int salg);
+int tus_create_thread(void *(*tsf)(void *), void *targ);
+int tus_yield(int tid);
+void tus_exit();
+int tus_join(int tid);
+int tus_cancel(int tid);
+int tus_gettid();
+void stub(void *(*tsf)(void *), void *targ);
+void switch_to(int tid);
+void enqueue(TCB *thread);
+int dequeue();
+void queue_remove_index(int q_index);
+bool queue_remove_thread(int tid);
+
+void thread_add(TCB *thread);
+TCB *thread_get(int tid);
+void thread_remove(TCB *thread);
+TCB *_threads[TUS_MAXTHREADS];
 int num_threads = 0;
+
 int cur_tid = 0;
+
 bool initialized = false;
+
+// The ready queue of tids
+int tqueue[TUS_MAXTHREADS];
+int num_queued = 0;
+
+int scheduling_alg = ALG_FCFS;
 
 int tus_init(int salg) {
     // Put main as the first thread
     // Get this current context
-    ucontext_t context;
-    long ret;
-    ret = getcontext(&context);
-    if (ret) {
+    scheduling_alg = salg;
+    TCB *main_thread = calloc(1, sizeof(TCB));
+    if (!main_thread) {
         return TUS_ERROR;
     }
-    // char *stack = (char *)context.uc_mcontext.gregs[REG_RSP];
-    TCB *tcb = calloc(1, sizeof(TCB));
-    if (!tcb) {
-        return TUS_ERROR;
-    }
-    tcb->state = RUNNING;
-    tcb->context = context;
-    tcb->waiting_for = -1;
-    threads[0] = tcb;
-    cur_tid = 0;
-
-    num_threads++;
+    thread_add(main_thread);
+    main_thread->state = RUNNING;
+    cur_tid = TID_MAIN;
+    num_threads = 1;
     initialized = true;
+    // We don't need to save context of main at this point because
+    // It either yields or joins saving it context, or it terminates without any need
     return 0;
 }
 
@@ -100,38 +112,36 @@ int tus_create_thread(void *(*tsf)(void *), void *targ) {
     if (num_threads == TUS_MAXTHREADS) {
         return TUS_ERROR;
     }
+    // Create a TCB block
+    TCB *thread = calloc(1, sizeof(TCB));
+    if (!thread) {
+        return TUS_ERROR;
+    }
     // Get this current context
-    ucontext_t context;
-    long ret;
-    ret = getcontext(&context);
+    // Some parts of the context need to be modified before swapping to it
+    long ret = getcontext(&thread->context);
     if (ret) {
         return TUS_ERROR;
     }
-    // Some parts of the context need to be modified before swapping to it
-    // ip points to stub
-    context.uc_mcontext.gregs[REG_RIP] = (long long)stub;
     // sp points to allocated stack
-    char *stack = malloc(sizeof(char) * TUS_STACKSIZE);
-    if (!stack) {
+    thread->stack = malloc(sizeof(char) * TUS_STACKSIZE);
+    if (!thread->stack) {
         return TUS_ERROR;
     }
+    // Stack pointer starts from large to small so we point to the end
+    // Stack pointer needs to point past the bounds so we move up by a byte and allocate (start from size 0)
+    thread->context.uc_mcontext.gregs[REG_RSP] = (long long)(thread->stack + TUS_STACKSIZE);
 
-    context.uc_mcontext.gregs[REG_RSP] = (long long)(stack + TUS_STACKSIZE - 1);
+    // ip points to stub
+    thread->context.uc_mcontext.gregs[REG_RIP] = (long long)stub;
+
     // Put into rdi and rsi the first and second arguments for stub (these are this functions arguments)
-    context.uc_mcontext.gregs[REG_RDI] = (long long)tsf;
-    context.uc_mcontext.gregs[REG_RSI] = (long long)targ;
-    // Create a TCB block
-    TCB *tcb = calloc(1, sizeof(TCB));
-    if (!tcb) {
-        return TUS_ERROR;
-    }
-    int tid = num_threads;
-    tcb->state = READY;
-    tcb->context = context;
-    tcb->waiting_for = -1;
-    threads[tid] = tcb;
-    num_threads++;
-    return tid;
+    thread->context.uc_mcontext.gregs[REG_RDI] = (long long)tsf;
+    thread->context.uc_mcontext.gregs[REG_RSI] = (long long)targ;
+
+    thread_add(thread);
+    enqueue(thread);
+    return thread->tid;
 }
 
 void stub(void *(*tsf)(void *), void *targ) {
@@ -145,122 +155,230 @@ void stub(void *(*tsf)(void *), void *targ) {
     tus_exit(); // terminate
 }
 
-int tus_yield(int tid) {
-    assert(tid != 0);
+int tus_yield(int yielded_tid) {
+    if (yielded_tid == TUS_ANY) {
+        if (num_queued == 0) {
+            return cur_tid;
+        }
+        yielded_tid = dequeue();
+    }
     // Search for tcb with tid
-    TCB *new_tcb = threads[tid];
-    if (!new_tcb || new_tcb->state != READY) {
+    TCB *yielded_thread = thread_get(yielded_tid);
+    if (!yielded_thread || yielded_thread->state != READY) {
         return -1;
     }
-    if (cur_tid == tid) {
-        return -1;
+    // TODO check if this is in the pdf
+    if (cur_tid == yielded_tid) {
+        return cur_tid;
     }
     int caller_tid = cur_tid;
+    TCB *caller = thread_get(caller_tid);
     // Save context of calling thread to threads[tid]
     // cur thread eventually returns to save context
-    threads[caller_tid]->state = READY;
-    long ret;
-    ret = getcontext(&threads[caller_tid]->context);
+    enqueue(caller);
+    caller->yielded = false;
+    long ret = getcontext(&yielded_thread->context);
     if (ret) {
         return TUS_ERROR;
     }
     // cur tid = caller tid means this is the first execution
     // after it the cur tid will be set to the yielded thread or another one
-    if (threads[cur_tid]->state == READY) {
+    if (!caller->yielded) {
+        // Save that the thread has yielded
+        caller->yielded = true;
         // Load context of new_tcb
-        new_tcb->state = RUNNING;
-        cur_tid = tid;
-        setcontext(&new_tcb->context);
+        switch_to(yielded_tid);
+        // Code never reaches here
     }
 
-    return tid;
+    return yielded_tid;
 }
 
 void tus_exit() {
-    threads[cur_tid]->state = TERMINATED;
+    TCB *tcb = thread_get(cur_tid);
+    tcb->state = TERMINATED;
     // There should be no running threads at this point
     for (int i = 0; i < TUS_MAXTHREADS; i++) {
-        if (threads[i]) {
-            assert(threads[i]->state != RUNNING);
-            assert(threads[i]->state != INVALID);
+        if (_threads[i]) {
+            assert(_threads[i]->state != RUNNING);
+            assert(_threads[i]->state != INVALID);
         }
     }
-    for (int i = 0; i < TUS_MAXTHREADS; i++) {
-        if (threads[i] && threads[i]->waiting_for == cur_tid) {
-            threads[i]->state = READY;
-            threads[i]->waiting_for = -1;
-        }
+    if (tcb->waited_for_by != -1) {
+        TCB *thread_no_longer_waiting = thread_get(tcb->waited_for_by);
+        thread_no_longer_waiting->waited_for_by = -1;
+        enqueue(thread_no_longer_waiting);
     }
-    for (int i = 0; i < TUS_MAXTHREADS; i++) {
-        if (!threads[i] || threads[i]->state != READY) {
-            continue;
+    if (num_queued) {
+        switch_to(dequeue());
+    } else {
+        // Check if there are any running threads
+        for (int i = 0; i < TUS_MAXTHREADS; i++) {
+            if (_threads[i] && _threads[i]->state == WAITING) {
+                printf("Warning: thread %d is waiting at program termination.\n", _threads[i]->tid);
+            }
         }
-        threads[i]->state = RUNNING;
-        cur_tid = i;
-        setcontext(&threads[i]->context);
+        exit(0);
     }
-    // If execution reaches here this is the last runnable thread
-    for (int i = 0; i < TUS_MAXTHREADS; i++) {
-        if (threads[i] && threads[i]->state == WAITING) {
-            printf("Warning: thread %d is waiting at program termination.\n", i);
-        }
-    }
-    exit(0);
-    return;
 }
 
 int tus_join(int tid) {
-    assert(tid != 0);
+    assert(tid != TID_MAIN);
     // Search for tcb with tid
-    TCB *new_tcb = threads[tid];
-    if (!new_tcb) {
+    TCB *waited_thread = thread_get(tid);
+    if (!waited_thread) {
         return -1;
     }
-    if (new_tcb->state == TERMINATED) {
-        free(new_tcb);
-        threads[tid] = NULL;
+    if (waited_thread->state == TERMINATED) {
+        thread_remove(waited_thread);
         return tid;
     }
+    // The thread can't be waited for by another thread or it will be overwritten
+    assert(waited_thread->waited_for_by == -1);
 
+    // Return if joined on itself
     if (cur_tid == tid) {
-        return -1;
+        return tid;
     }
 
     int caller_tid = cur_tid;
     // Save context of calling thread to threads[tid]
     // cur thread eventually returns to save context
-    threads[caller_tid]->state = WAITING;
-    threads[caller_tid]->waiting_for = tid;
+    TCB *caller = thread_get(cur_tid);
+    caller->state = WAITING;
+    waited_thread->waited_for_by = caller_tid;
     long ret;
-    ret = getcontext(&threads[caller_tid]->context);
+    // Save the current context into caller
+    ret = getcontext(&caller->context);
     if (ret) {
         return TUS_ERROR;
     }
     // cur tid = caller tid means this is the first execution
     // after it the cur tid will be set to the yielded thread or another one
-    if (threads[cur_tid]->state == WAITING) {
-        // Load context of new_tcb
-        new_tcb->state = RUNNING;
-        cur_tid = tid;
-        setcontext(&new_tcb->context);
+    // If the waited for task is ready switch to it, if not schedule
+    TCB *cur_thread = thread_get(cur_tid);
+    if (cur_thread && cur_thread->state == WAITING) {
+        // Always queue the caller thread
+        enqueue(caller);
+        if (waited_thread->state == READY) {
+            // If the waited for thread is ready enqueue the caller and switch to the waited on thread
+            switch_to(tid);
+        } else {
+            assert(num_queued);
+            switch_to(dequeue());
+        }
     }
-    assert(threads[cur_tid]->waiting_for == -1);
+    // Deallocate the waited thread
+    // We assume we only one threads waits for a given threads
+    assert(waited_thread->state == TERMINATED);
+    assert(waited_thread->waited_for_by == -1);
+    thread_remove(waited_thread);
     return tid;
 }
 
+// Swith to the thread removing it from the ready queue if it's there
+void switch_to(int tid) {
+    TCB *thread = thread_get(tid);
+    assert(thread);
+    queue_remove_thread(tid);
+    thread->state = RUNNING;
+    cur_tid = tid;
+    setcontext(&thread->context);
+}
+
 int tus_cancel(int tid) {
-    TCB *cancel_tcb = threads[tid];
-    if (!cancel_tcb) {
+    TCB *cancelled_thread = thread_get(tid);
+    if (!cancelled_thread) {
         return -1;
     }
     // Tries to cancel itself
     if (cur_tid == tid) {
         return -1;
     }
-    cancel_tcb->state = TERMINATED;
+    queue_remove_thread(tid);
+    cancelled_thread->state = TERMINATED;
+
     return 0;
 }
 
 int tus_gettid() {
     return cur_tid;
+}
+
+// Makes the thread ready
+void enqueue(TCB *thread) {
+    assert(num_queued < TUS_MAXTHREADS);
+    tqueue[num_queued] = thread->tid;
+    assert(thread->waited_for_by == -1);
+    thread->state = READY;
+    num_queued++;
+}
+
+int dequeue() {
+    assert(num_queued > 0);
+    if (scheduling_alg == ALG_FCFS) {
+        int tid = tqueue[0];
+        queue_remove_index(0);
+        return tid;
+    } else if (scheduling_alg == ALG_RANDOM) {
+        int rand_idx = rand() % num_queued;
+        int tid = tqueue[rand_idx];
+        queue_remove_index(rand_idx);
+        return tid;
+    } else {
+        assert(false);
+    }
+}
+
+void queue_remove_index(int q_index) {
+    num_queued--;
+    for (int i = q_index; i < num_queued; i++) {
+        tqueue[i] = tqueue[i + 1];
+    }
+}
+
+bool queue_remove_thread(int tid) {
+    for (int i = 0; i < num_queued; i++) {
+        if (tqueue[i] == tid) {
+            queue_remove_index(i);
+            return true;
+        }
+    }
+    return false;
+}
+
+// Used when you create a new thread
+// This thread should be ready to execute
+void thread_add(TCB *tcb) {
+    for (int i = 0; i < TUS_MAXTHREADS; i++) {
+        if (_threads[i] == NULL) {
+            _threads[i] = tcb;
+            num_threads++;
+            int tid = num_threads;
+            // Threads are numbered 1 to n
+            tcb->tid = tid;
+            tcb->state = READY;
+            tcb->waited_for_by = -1;
+            tcb->yielded = true;
+            break;
+        }
+    }
+}
+
+TCB *thread_get(int tid) {
+    for (int i = 0; i < TUS_MAXTHREADS; i++) {
+        if (_threads[i] && _threads[i]->tid == tid) {
+            return _threads[i];
+        }
+    }
+    return NULL;
+}
+
+void thread_remove(TCB *thread) {
+    // TODO free stack as well
+    _threads[thread->tid] = NULL;
+    queue_remove_thread(thread->tid);
+    free(thread->stack);
+    free(thread);
+    num_threads--;
 }
