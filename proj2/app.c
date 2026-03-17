@@ -369,7 +369,6 @@ void test_argument_passing() {
     test_struct t = {.a = 10, .b = 5, .str = "Hello world"};
     int tid = tus_create_thread(argument_passing, &t);
     tus_yield(tid);
-    tus_exit();
 }
 
 // Test: yield chain (A -> B -> C, then unwinds)
