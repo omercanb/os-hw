@@ -545,8 +545,6 @@ void *test_stack() {
     ucontext_t ctx;
     getcontext(&ctx);
 
-    long long rsp = ctx.uc_mcontext.gregs[REG_RSP];
-
     printf("ACTUAL OUTPUT\n");
     printf("a = 0x%X\n", *(volatile int *)&a);
     printf("b = 0x%X\n", *(volatile int *)&b);

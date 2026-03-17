@@ -1,9 +1,3 @@
-// ============================================================
-// EXPERIMENT 1: Context switch cost
-// Two threads ping-pong yielding to each other N times.
-// Measures average time per tus_yield (context switch).
-// ============================================================
-
 #include "tus.h"
 #include <stdio.h>
 #include <stdlib.h>

@@ -266,8 +266,6 @@ int tus_join(int tid) {
     // cur tid = caller tid means this is the first execution
     // after it the cur tid will be set to the yielded thread or another one
     // If the waited for task is ready switch to it, if not schedule
-    TCB *cur_thread = thread_get(cur_tid);
-    // if (cur_thread && cur_thread->state == WAITING) {
     if (waited_thread->waited_for_by != -1) {
         if (waited_thread->state == READY) {
             // If the waited for thread is ready enqueue the caller and switch to the waited on thread
