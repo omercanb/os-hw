@@ -515,12 +515,10 @@ void test_join_cancel() {
 
     // let B run first so it's alive when A tries to join
     tus_yield(join_cancel_b_tid);
-    // B yielded back to main; now let A run — A will join on B and block
-    tus_yield(a_tid);
-    // A is now WAITING on B; main is running again
+    // B yielded back to main, now cancel A
     int ret = tus_cancel(join_cancel_b_tid);
     printf("main: cancelling B, ret=%d\n", ret);
-    // A should wake up now since B is terminated
+    // now run A
     tus_yield(a_tid);
     printf("main: done\n");
     tus_exit();
