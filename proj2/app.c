@@ -37,17 +37,6 @@ void *foo(void *v) {
     return (NULL);
 }
 
-void *simple_worker(void *args) {
-    char *str = (char *)args;
-    printf("From test: %s\n", str);
-    fflush(stdout);
-    return 0;
-}
-
-void simple() {
-    tus_create_thread(simple_worker, "Hello world");
-}
-
 typedef struct {
     int a;
     int b;
@@ -95,7 +84,6 @@ void *worker_e() {
     int f = tus_create_thread(worker_f, NULL);
     printf("yielding from e to f\n");
     int ret = tus_yield(f);
-    printf("e yield ret: %d\n", ret);
     ret = tus_join(f);
     assert(f == ret);
     printf("worker_e\n");
@@ -123,14 +111,14 @@ void test_main_thread_exit() {
 
 int main(int argc, char **argv) {
     tus_init(ALG_FCFS);
-    // test_main_thread_exit();
-    // int a = tus_create_thread(worker_a, NULL);
-    // tus_yield(a);
+    test_main_thread_exit();
+    int a = tus_create_thread(worker_a, NULL);
+    tus_yield(a);
     int d = tus_create_thread(worker_d, NULL);
     int ret = tus_join(d);
     assert(d == ret);
-    tus_exit();
-    exit(0);
+    // tus_exit();
+    // exit(0);
     int *tids;
     int i;
     int numthreads = 0;

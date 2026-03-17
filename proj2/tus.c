@@ -105,7 +105,7 @@ int tus_init(int salg) {
     initialized = true;
     // We don't need to save context of main at this point because
     // It either yields or joins saving it context, or it terminates without any need
-    return 0;
+    return TID_MAIN;
 }
 
 int tus_create_thread(void *(*tsf)(void *), void *targ) {
@@ -274,7 +274,6 @@ int tus_join(int tid) {
     }
     // Deallocate the waited thread
     // We assume we only one threads waits for a given threads
-    printf("%d\n", waited_thread->state);
     assert(waited_thread->state == TERMINATED);
     assert(waited_thread->waited_for_by == -1);
     thread_remove(waited_thread);
