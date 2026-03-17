@@ -504,8 +504,8 @@ void test_join_cancel() {
     printf("=== TEST: join then cancel ===\n");
     printf("EXPECTED OUTPUT:\n");
     printf("  B: running, yielding back to main\n");
-    printf("  A: joining on B (tid=<B>)\n");
     printf("  main: cancelling B, ret=0\n");
+    printf("  A: joining on B (tid=<B>)\n");
     printf("  A: join returned <B> (expected <B>)\n");
     printf("  main: done\n");
     printf("ACTUAL OUTPUT:\n");
@@ -518,7 +518,7 @@ void test_join_cancel() {
     // B yielded back to main, now cancel A
     int ret = tus_cancel(join_cancel_b_tid);
     printf("main: cancelling B, ret=%d\n", ret);
-    // now run A
+    // now run A, a should not block on the join now
     tus_yield(a_tid);
     printf("main: done\n");
     tus_exit();
