@@ -206,6 +206,7 @@ void tus_exit() {
     }
     if (thread->waited_for_by != -1) {
         TCB *thread_no_longer_waiting = thread_get(thread->waited_for_by);
+        thread->waited_for_by = 1;
         enqueue(thread_no_longer_waiting);
     }
     if (num_queued) {
