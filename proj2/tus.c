@@ -387,11 +387,11 @@ TCB *thread_get(int tid) {
 void thread_remove(TCB *thread) {
     for (int i = 0; i < TUS_MAXTHREADS; i++) {
         if (_threads[i] && _threads[i]->tid == thread->tid) {
-            _threads[i] = NULL;
             queue_remove_thread(_threads[i]->tid);
             free(_threads[i]->stack);
             free(_threads[i]);
             num_threads--;
+            _threads[i] = NULL;
         }
     }
 }
