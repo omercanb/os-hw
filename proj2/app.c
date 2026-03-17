@@ -95,6 +95,7 @@ void *worker_e() {
     int f = tus_create_thread(worker_f, NULL);
     printf("yielding from e to f\n");
     int ret = tus_yield(f);
+    printf("e yield ret: %d\n", ret);
     ret = tus_join(f);
     assert(f == ret);
     printf("worker_e\n");
