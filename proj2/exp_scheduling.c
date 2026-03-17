@@ -49,11 +49,7 @@ void run_experiment(int alg, const char *alg_name) {
         tids[i] = tus_create_thread(worker, &ranks[i]);
     }
 
-    // kick off by yielding to first thread
     // each thread runs to completion, then tus_exit picks next
-    tus_yield(TUS_ANY);
-
-    // join all
     for (int i = 0; i < NUM_THREADS; i++) {
         tus_join(tids[i]);
     }
