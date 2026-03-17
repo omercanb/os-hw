@@ -4,7 +4,7 @@
 #include <time.h>
 
 #define NUM_THREADS 10
-#define BASE_WORK 5000000
+#define BASE_WORK 50000000
 
 static struct timespec start_time;
 static double finish_times[NUM_THREADS + 10]; // indexed by tid
