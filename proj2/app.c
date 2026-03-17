@@ -363,7 +363,7 @@ void *argument_passing(void *arg) {
 void test_argument_passing() {
     printf("=== TEST: argument passing ===\n");
     printf("EXPECTED OUTPUT:\n");
-    printf("  a: 10, b:5, str:Hello world\n");
+    printf("a: 10, b:5, str:Hello world\n");
     printf("ACTUAL OUTPUT:\n");
 
     test_struct t = {.a = 10, .b = 5, .str = "Hello world"};
