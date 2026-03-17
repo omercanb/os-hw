@@ -321,11 +321,16 @@
 //     return 0;
 // }
 
-#include "tus.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+
+#ifndef __USE_GNU
+#define __USE_GNU
+#endif
+#include "tus.h"
+#include <ucontext.h>
 
 #define MAXCOUNT 5
 #define YIELDPERIOD 1
@@ -524,6 +529,34 @@ void test_join_cancel() {
     tus_exit();
 }
 
+// Test: stack placement
+void *test_stack() {
+    volatile int a = 0xDEADBEEF;
+    volatile int b = 0xCAFEBABE;
+    volatile int c = 0x12345678;
+    volatile int d = 0xAAAABBBB;
+
+    printf("expected values on stack:\n");
+    printf("  &a = %p -> 0x%X\n", (void *)&a, a);
+    printf("  &b = %p -> 0x%X\n", (void *)&b, b);
+    printf("  &c = %p -> 0x%X\n", (void *)&c, c);
+    printf("  &d = %p -> 0x%X\n", (void *)&d, d);
+
+    ucontext_t ctx;
+    getcontext(&ctx);
+
+    long long rsp = ctx.uc_mcontext.gregs[REG_RSP];
+
+    printf("\nRSP = 0x%llx\n", rsp);
+    printf("\nreading from stack at each address:\n");
+    printf("  *(&a) = 0x%X  (expected 0xDEADBEEF)\n", *(volatile int *)&a);
+    printf("  *(&b) = 0x%X  (expected 0xCAFEBABE)\n", *(volatile int *)&b);
+    printf("  *(&c) = 0x%X  (expected 0x12345678)\n", *(volatile int *)&c);
+    printf("  *(&d) = 0x%X  (expected 0xAAAABBBB)\n", *(volatile int *)&d);
+
+    return 0;
+}
+
 // Test: N threads with foo
 void test_n_threads(int numthreads) {
     printf("=== TEST: %d threads running foo ===\n", numthreads);
@@ -543,9 +576,6 @@ void test_n_threads(int numthreads) {
     tus_exit();
 }
 
-// ============================================================
-// main
-// ============================================================
 int main(int argc, char **argv) {
     tus_init(ALG_FCFS);
 
@@ -559,6 +589,7 @@ int main(int argc, char **argv) {
         test_join_chain();
         test_cancel();
         test_join_cancel();
+        test_stack();
     }
 
     return 0;
