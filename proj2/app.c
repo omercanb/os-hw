@@ -117,6 +117,7 @@ void test_main_thread_exit() {
     t.b = 5;
     t.str = "Hello world";
     int tid1 = tus_create_thread(argument_passing, &t);
+    tus_yield(tid1);
     tus_exit();
 }
 
