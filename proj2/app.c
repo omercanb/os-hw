@@ -8,7 +8,7 @@
 // create and work with threads.
 
 #define MAXCOUNT 5
-#define YIELDPERIOD 100
+#define YIELDPERIOD 1
 
 void *worker_a();
 void *worker_b();
