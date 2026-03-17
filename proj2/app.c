@@ -530,16 +530,17 @@ void test_join_cancel() {
 
 // Test: stack placement
 void *test_stack() {
+    printf("=== TEST: stack values working propperly ===");
     volatile int a = 0xDEADBEEF;
     volatile int b = 0xCAFEBABE;
     volatile int c = 0x12345678;
     volatile int d = 0xAAAABBBB;
 
-    printf("expected values on stack:\n");
-    printf("  &a = %p -> 0x%X\n", (void *)&a, a);
-    printf("  &b = %p -> 0x%X\n", (void *)&b, b);
-    printf("  &c = %p -> 0x%X\n", (void *)&c, c);
-    printf("  &d = %p -> 0x%X\n", (void *)&d, d);
+    printf("EXPECTED OUTPUT:\n");
+    printf("  a = 0x%X\n", a);
+    printf("  b = 0x%X\n", b);
+    printf("  c = 0x%X\n", c);
+    printf("  d = 0x%X\n", d);
 
     ucontext_t ctx;
     getcontext(&ctx);
@@ -548,10 +549,10 @@ void *test_stack() {
 
     printf("\nRSP = 0x%llx\n", rsp);
     printf("\nreading from stack at each address:\n");
-    printf("  *(&a) = 0x%X  (expected 0xDEADBEEF)\n", *(volatile int *)&a);
-    printf("  *(&b) = 0x%X  (expected 0xCAFEBABE)\n", *(volatile int *)&b);
-    printf("  *(&c) = 0x%X  (expected 0x12345678)\n", *(volatile int *)&c);
-    printf("  *(&d) = 0x%X  (expected 0xAAAABBBB)\n", *(volatile int *)&d);
+    printf("a = 0x%X\n", *(volatile int *)&a);
+    printf("b = 0x%X\n", *(volatile int *)&b);
+    printf("c = 0x%X\n", *(volatile int *)&c);
+    printf("d = 0x%X\n", *(volatile int *)&d);
 
     return 0;
 }
