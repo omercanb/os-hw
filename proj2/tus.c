@@ -184,7 +184,6 @@ int tus_yield(int yielded_tid) {
     // cur tid = caller tid means this is the first execution
     // after it the cur tid will be set to the yielded thread or another one
     if (!caller->yielded) {
-        printf("yielding\n");
         // Save that the thread has yielded
         caller->yielded = true;
         // Load context of new_tcb
