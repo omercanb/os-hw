@@ -2,6 +2,7 @@
 #define RSM_H
 
 #include <pthread.h>
+#include <stdbool.h>
 
 #define MAX_RT 100 // max num of resource types supported
 #define MAX_PR 100 // max num of processes supported
@@ -46,6 +47,7 @@ int rsm_request(int request[]);
 int rsm_release(int release[]);
 int rsm_detection();
 void rsm_print_state(char headermsg[]);
+void _rsm_set_avoidance(bool avoidance);
 
 int bankers(int request[]);
 

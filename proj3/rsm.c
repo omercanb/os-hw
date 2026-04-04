@@ -20,6 +20,10 @@ int fd;
 state_t *state;
 bool avoidance;
 
+void _rsm_set_avoidance(bool avoidance) {
+    avoidance = avoidance;
+}
+
 int get_proc() {
     int pid = getpid();
     for (int proc = 0; proc < num_procs; proc++) {
