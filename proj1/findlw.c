@@ -47,6 +47,7 @@ void printLongWords(WordList list, FILE *outfile) {
         }
         fprintf(outfile, "\n");
     }
+    fclose(outfile);
 }
 
 WordList processFiles(char *filePrefix, int numFiles, int longWordLimit) {

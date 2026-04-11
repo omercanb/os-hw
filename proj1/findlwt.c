@@ -38,6 +38,7 @@ int main(int argc, char **argv) {
     lists = calloc(sizeof(WordList), numFiles);
 
     processFilesMultiProcess();
+    printf("Stopping.\n");
     return 0;
 }
 
