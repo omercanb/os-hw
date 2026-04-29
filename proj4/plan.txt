@@ -1,0 +1,15 @@
+An FCB corresponds to each file. It contains
+    A an id (index), file size, and file name
+    A pointer to an index block
+    
+An index block contains 4 byte ints full of pointers to data blocks.
+
+How to create a file:
+    Create a direntry
+    Find free block 
+    Turn free block into an index file
+    Find free inode (using inode map)
+        Choose ID from max ID + 1
+        Assign name
+        Assign pointer to index block
+    
