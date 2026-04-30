@@ -20,12 +20,7 @@ int mfs_release(const char *path, struct fuse_file_info *fi);
 int mfs_create(const char *path, mode_t, struct fuse_file_info *);
 int mfs_utimens(const char *path, const struct timespec tv[2], struct fuse_file_info *fi);
 int mfs_unlink(const char *path);
-
-// ....
-
-/* Utility functions */
-int read_block(void *block, int k);
-int write_block(void *block, int k);
+int mfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi);
 
 static struct fuse_operations mfs_oper = {
     .getattr = mfs_getattr,
@@ -40,7 +35,7 @@ static struct fuse_operations mfs_oper = {
     .open = mfs_open,
     .read = mfs_read,
     .release = mfs_release,
-    .write = NULL,
+    .write = mfs_write,
     .rename = NULL,
     .utimens = mfs_utimens};
 
@@ -66,13 +61,13 @@ int mfs_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *_) 
     }
     const char *filename = &path[1];
     inode f;
-    res = get_file(filename, &f);
+    res = get_inode(filename, &f);
     if (res < 0) {
         return -ENOENT;
     }
     stbuf->st_mode = S_IFREG | 0777;
     stbuf->st_nlink = 1;
-    stbuf->st_size = 10;
+    stbuf->st_size = f.st_size;
     return 0;
 }
 
@@ -89,7 +84,7 @@ int mfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
     filler(buf, ".", NULL, 0, 0);
     filler(buf, "..", NULL, 0, 0);
     filler(buf, "hello", NULL, 0, 0);
-    direntry *root = get_files();
+    direntry *root = malloc_and_read_block(BLOCK_ROOT_DIR);
     for (int i = 0; i < MAX_NUM_FILES; i++) {
         direntry f = root[i];
         if (is_inode_free(i)) {
@@ -133,15 +128,36 @@ int mfs_open(const char *path, struct fuse_file_info *fi) {
     return 0;
 }
 
-int mfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
-    printf("read: (path=%s)\n", path);
-    memcpy(buf, "Hello\n", 6);
-    return 6;
-}
-
 int mfs_release(const char *path, struct fuse_file_info *fi) {
     printf("release: (path=%s)\n", path);
     return 0;
+}
+
+int mfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
+    // memcpy(buf, "Hello\n", 6);
+    const char *filename = &path[1];
+    int bytes_read = read_file(filename, buf, size, offset);
+    printf("read: (path=%s) (size=%ld) (offset=%ld) (num read=%d)\n", path, size, offset, bytes_read);
+    return bytes_read;
+}
+
+int mfs_write(const char *path, const char *buf, size_t size,
+              off_t offset, struct fuse_file_info *fi) {
+    const char *filename = &path[1];
+    // int inode_num = _find_inode_num(filename);
+    // assert(inode_num != -1);
+    // inode inode = _get_inode(inode_num);
+    int num_written = append_to_file(filename, buf, size);
+
+    // Make sure we have an index file
+    // While there is data left to write
+    // If you don't have a free data file create one
+    // Write it into the data file
+    //
+    // Free data file (we need a size attribute on the inode)
+    // Size // block size is the index of the data block
+    // Size % block size is the empty part of this data block
+    return num_written;
 }
 
 int mfs_init() {
@@ -155,6 +171,12 @@ int mfs_init() {
     for (int i = 0; i < BLOCK_DATA_START; i++) {
         write_block(buffer, i); // write superblock info
     }
+    char *bitmap_block = malloc_block();
+    // 1111 1100 this is the blocks that are used until data start
+    bitmap_block[0] = 0xFC;
+    write_block(bitmap_block, BLOCK_BITMAP);
+    free(bitmap_block);
+
     fsync(fd_disk);
     printf("fd disk: %d \n", fd_disk);
 
@@ -173,15 +195,30 @@ int main(int argc, char *argv[]) {
         perror("open disk");
         return 1;
     }
-
     mfs_init();
 
     printf("initialized the file system\n");
     fflush(stdout);
 
-    int i = create_file("ZUBIZUBIZOO");
+    int i = create_file("zubi");
+    // This dubidubidubi fucks shit up bad, it makes the whole inode map be FFFFF
     i = create_file("DUBIDUBIDUBI");
     printf("new file: %d\n", i);
+    char *buf = "Hello world";
+    int num_appended = append_to_file("zubi", buf, 12);
+    num_appended = append_to_file("zubi", buf, 12);
+    num_appended = append_to_file("zubi", buf, 12);
+    printf("Num Bytes Written: %d\n", num_appended);
+    inode f1;
+    int res = get_inode("zubi", &f1);
+    char *data = malloc_block();
+    _get_data_block(f1, 0, data);
+    printf("Printing block for zubi\n");
+    print_block(data);
+    printf("Printed block\n");
+    printf("Size for zubi inode: %d\n", f1.st_size);
+
+    free(data);
 
     fuse_main(argc, argv, &mfs_oper, NULL);
 

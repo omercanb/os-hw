@@ -13,3 +13,17 @@ How to create a file:
         Assign name
         Assign pointer to index block
     
+
+How to do a write:
+    Write basics, edit and expand the file so that these new n bytes are also placed in the file
+    In memory you could just do expand array
+    Make sure that you have an index block per file before
+    First if you dont have space expand
+        So if len < data avilable (do these calculations from total len)
+        Create a new data file and add it to index
+    Then write to the last avilable data file as much as you can
+    If you run out of space expand again (repeat)
+
+    Update the space and make sure you write back
+
+
