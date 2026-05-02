@@ -1,6 +1,6 @@
 
 CFLAGS = -Wall -Werror -Wno-unused-variable -ggdb -pg -fno-omit-frame-pointer \
-         -fstack-protector -Wformat-security -fsanitize=address
+         -fstack-protector -Wformat-security -fsanitize=address -Wcast-qual
 #
 all: mfs make_mfs
 

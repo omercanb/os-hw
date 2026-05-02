@@ -14,8 +14,8 @@
 
 int fd_disk;
 
-char inode_map[BLOCKSIZE];
 bool is_inode_free(int inode_num) {
+    char inode_map[BLOCKSIZE];
     // TODO make this more efficient
     // Also check if this always works correctly, like if inode map can be edited before it is read into
     read_block(&inode_map, BLOCK_INODE_MAP);
@@ -44,7 +44,8 @@ int get_file(const char *filename, inode *out) {
 }
 
 bool file_exists(const char *filename) {
-    direntry *root_block = malloc_and_read_block(BLOCK_ROOT_DIR);
+    direntry root_block[BLOCKSIZE / sizeof(direntry)];
+    read_block(root_block, BLOCK_ROOT_DIR);
     int inode_num = -1;
     for (int i = 0; i < MAX_NUM_FILES; i++) {
         direntry f = root_block[i];
@@ -56,7 +57,6 @@ bool file_exists(const char *filename) {
             break;
         }
     }
-    free(root_block);
     if (inode_num == -1) {
         return false;
     } else {
@@ -77,195 +77,189 @@ int create_file(const char *filename) {
     _create_direntry(filename, inode_num);
 
     int index_block_num = _create_index_block();
-    inode f = _create_inode(inode_num, index_block_num);
-
-    // Allocate an initial data block to start
-    _allocate_data_block(f);
+    inode ino = _create_inode(inode_num, index_block_num);
     return inode_num;
 }
 
 int delete_file(const char *filename) {
-    // Only setting the used bit is enough to delete it
-    int inode_num = _find_inode_num(filename);
-    if (inode_num == -1) {
-        return -1;
-    }
-    // Free the inode
-    _free_bit(BLOCK_INODE_MAP, inode_num);
+    inode ino;
+    if (get_inode(filename, &ino) == -1) return -1;
 
-    // Free the index block
-    inode inode = _get_inode(inode_num);
-    _free_bit(BLOCK_BITMAP, inode.index_block_num);
+    // Free the inode number from the inode map
+    _free_bit(BLOCK_INODE_MAP, ino.inode_num);
+
+    // Load the index to free all data blocks
+    int index[BLOCKSIZE / sizeof(int)];
+    read_block(index, ino.index_block_num);
+
+    // Load the bitmap to do frees in memory before writing
+    char bitmap[BLOCKSIZE];
+    read_block(bitmap, BLOCK_BITMAP);
+
+    // Free data blocks
+    int num_blocks = (ino.st_size + BLOCKSIZE - 1) / BLOCKSIZE;
+    for (int i = 0; i < num_blocks; i++) {
+        _free_entry(bitmap, index[i]);
+    }
+    // Free the index block itself
+    _free_entry(bitmap, ino.index_block_num);
+    write_block(bitmap, BLOCK_BITMAP);
     return 0;
 }
 
-int append_to_file(const char *filename, const char *buf, int size) {
-    printf("Appending\n");
-    int inode_num = _find_inode_num(filename);
-    printf("inode num: %d\n", inode_num);
-    if (inode_num == -1) {
-        return -1;
-    }
-    inode inode = _get_inode(inode_num);
-    int file_size = inode.st_size;
-    // while there is remaining content to write
-    int buf_offset = 0;
-    char *cur_data_block = malloc_block();
-
-    // Read index block
-    assert(inode.index_block_num != -1);
-    // TODO refactor this combo of malloc and read to do them together
-    int *index_block = malloc_and_read_block(inode.index_block_num);
-
-    // TODO remove
-    int data_block_num = _allocate_data_block(inode);
-    printf("One append done\n");
-    assert(data_block_num != -1);
-
-    int data_block_idx = file_size / BLOCKSIZE;
-    int data_block_offset = file_size % BLOCKSIZE;
-    // If there is a non-empty data file to write in
-    // if (data_block_offset != 0) {
-    // Get the last block
-    int cur_data_block_num = index_block[data_block_idx];
-    assert(cur_data_block_num != -1);
-    read_block(cur_data_block, cur_data_block_num);
-    // Calculate how much to write
-    int free_bytes_in_data_block = BLOCKSIZE - data_block_offset;
-    int write_amount = min(size, free_bytes_in_data_block);
-    // Write it
-    memcpy(&cur_data_block[data_block_offset], buf, write_amount);
-    write_block(cur_data_block, cur_data_block_num);
-    buf_offset += write_amount;
-    file_size += write_amount;
-    // }
-    free(index_block);
-    free(cur_data_block);
-    inode.st_size = file_size;
-    _save_inode(inode);
-    int num_bytes_written = buf_offset;
-    return num_bytes_written;
-
-    // // If there is a data block available write into it as much as you can
-    // // Continue allocating a data block and writing into it
-    // while (bytes_written > 0) {
-    //     int data_block_idx = file_size / BLOCKSIZE;
-    //     int data_block_offset = file_size % BLOCKSIZE;
-    //     int cur_data_block_num = index_block[data_block_idx];
-    //     if (cur_data_block_num == -1) {
-    //         cur_data_block_num = _allocate_data_block(inode);
-    //         if (cur_data_block_num == -1) {
-    //             free(index_block);
-    //             free(cur_data_block);
-    //             return -1;
-    //         }
-    //     }
-    //     assert(cur_data_block_num != -1);
-    //     read_block(cur_data_block, cur_data_block_num);
-    //     int free_bytes_in_data_block = BLOCKSIZE - data_block_offset;
-    //     int write_amount;
-    //     if (bytes_written <= free_bytes_in_data_block) {
-    //         write_amount = bytes_written;
-    //     } else {
-    //         write_amount = free_bytes_in_data_block;
-    //     }
-    //     memcpy(&cur_data_block[data_block_offset], &buf[buf_offset], write_amount);
-    //     write_block(cur_data_block, cur_data_block_num);
-    //     bytes_written -= write_amount;
-    //     buf_offset += write_amount;
-    //     file_size += write_amount;
-    // }
-    //
-    // inode.st_size = file_size;
-    // _save_inode(inode);
-    //
-    // free(index_block);
-    // free(cur_data_block);
-}
-
 int read_file(const char *filename, char *buf, int size, int offset) {
-    inode inode;
-    int res = get_inode(filename, &inode);
-    if (res == -1) {
-        return -1;
+    inode ino;
+    if (get_inode(filename, &ino) == -1) return -1; // File not found
+    // Clamp the size to what exists in the file
+    // Return EOF or shorten the request
+    if (ino.st_size <= offset) return 0;
+    if (ino.st_size < offset + size) size = ino.st_size - offset;
+
+    // Load the file's index block
+    int index[INDEX_LENGTH];
+    read_block(index, ino.index_block_num);
+
+    char block_buf[BLOCKSIZE];
+    int bytes_done = 0;
+    while (bytes_done < size) {
+        int file_offset = offset + bytes_done;          // The place in the file to read
+        int block_num = index[file_offset / BLOCKSIZE]; // The data block to read
+        int block_offset = file_offset % BLOCKSIZE;     // Place inside block to start read from
+
+        if (read_block(block_buf, block_num) < 0) return -1;
+
+        int bytes_left_in_block = BLOCKSIZE - block_offset;
+        int bytes_left_in_request = size - bytes_done;
+        int chunk_size = min(bytes_left_in_block, bytes_left_in_request);
+        memcpy(buf + bytes_done, block_buf + block_offset, chunk_size);
+        bytes_done += chunk_size;
     }
-    char *data = malloc_block();
-    int block_num = _get_data_block(inode, 0, data);
-    memcpy(buf, data, size);
-    free(data);
-    return size;
-    //
-    // char *cur_data_block = malloc_block();
-    //
-    // // Read index block
-    // assert(inode.index_block_num != -1);
-    // int *index_block = malloc_block();
-    // read_block(index_block, inode.index_block_num);
-    //
-    // int data_block_idx = offset / BLOCKSIZE;
-    // int data_block_offset = offset % BLOCKSIZE;
-    // int cur_data_block_num = index_block[data_block_idx];
-    // assert(cur_data_block_num != -1);
-    // read_block(cur_data_block, cur_data_block_num);
-    // int read_amount = size;
-    // memcpy(buf, cur_data_block, read_amount);
-    // free(cur_data_block);
-    // free(index_block);
-    // return read_amount;
+    return bytes_done;
 }
 
+int write_file(const char *filename, const char *buf, int size, off_t offset) {
+    inode ino;
+    if (get_inode(filename, &ino) == -1) return -1; // File not found
+
+    // Load the file's index block to be used later
+    int index[INDEX_LENGTH];
+    if (read_block(index, ino.index_block_num) == -1) return -EIO;
+
+    int write_end = size + offset;
+    int new_size = max(ino.st_size, write_end);
+    if (new_size > MAX_FILE_SIZE) return -EFBIG;
+
+    // If we need to write past where the file already exists, we may need to allocate more data blocks
+    if (new_size > ino.st_size) {
+        // Allocate all the data blocks needed
+        int new_num_blocks = (new_size + BLOCKSIZE - 1) / BLOCKSIZE;
+        int old_num_blocks = (ino.st_size + BLOCKSIZE - 1) / BLOCKSIZE;
+        int blocks_to_alloc = new_num_blocks - old_num_blocks;
+
+        // If we need to actually allocate more data blocks
+        if (blocks_to_alloc > 0) {
+            // Load the free data blocks
+            char bitmap[BLOCKSIZE];
+            if (read_block(bitmap, BLOCK_BITMAP) == -1) return -EIO;
+
+            for (int i = old_num_blocks; i < new_num_blocks; i++) {
+                int new_block_num = _allocate_entry(bitmap);
+                if (new_block_num == -1) {
+                    // Out of space, free entries
+                    for (int j = old_num_blocks; j < i; j++) {
+                        _free_entry(bitmap, index[j]);
+                    }
+                    return -ENOSPC;
+                }
+                index[i] = new_block_num;
+            }
+            write_block(index, ino.index_block_num);
+            write_block(bitmap, BLOCK_BITMAP);
+        }
+    }
+    // Finish allocating new data blocks
+
+    char block_buf[BLOCKSIZE];
+    int bytes_done = 0;
+    while (bytes_done < size) {
+        int file_offset = offset + bytes_done;          // The place in the logical file to write to
+        int block_num = index[file_offset / BLOCKSIZE]; // The data block to write to
+        int block_offset = file_offset % BLOCKSIZE;     // Place inside block to start writing to
+
+        int bytes_left_in_block = BLOCKSIZE - block_offset;
+        int bytes_left_in_request = size - bytes_done;
+        int chunk_size = min(bytes_left_in_block, bytes_left_in_request);
+
+        // If we will write a whole block we don't need to read first
+        if (!(block_offset == 0 && chunk_size == BLOCKSIZE)) {
+            if (read_block(block_buf, block_num) < 0) return -EIO;
+        }
+
+        memcpy(block_buf + block_offset, buf + bytes_done, chunk_size);
+        write_block(block_buf, block_num);
+        bytes_done += chunk_size;
+    }
+    if (new_size != ino.st_size) {
+        ino.st_size = new_size;
+        _save_inode(ino);
+    }
+    return bytes_done;
+}
+
+// Creates a new entry in the root directory by putting a
 void _create_direntry(const char *filename, int inode_num) {
-    direntry *root_block = malloc_and_read_block(BLOCK_ROOT_DIR);
-    direntry dir = root_block[inode_num];
+    direntry root_block[BLOCKSIZE / sizeof(direntry)];
+    read_block(root_block, BLOCK_ROOT_DIR);
+    direntry dir;
     strcpy(dir.filename, filename);
-    dir.inode_num = inode_num;
     root_block[inode_num] = dir;
     write_block(root_block, BLOCK_ROOT_DIR);
-    free(root_block);
 }
 
 inode _create_inode(int inode_num, int index_block_num) {
-    int i = inode_num / sizeof(inode);
-    int offset = inode_num % sizeof(inode);
+    int inodes_per_block = BLOCKSIZE / sizeof(inode);
+    int i = inode_num / inodes_per_block;
+    int offset = inode_num % inodes_per_block;
     int block_num = BLOCK_INODE_TABLE_START + i;
     assert(block_num <= BLOCK_INODE_TABLE_END);
-    inode *block = malloc_and_read_block(block_num);
-    inode inode = block[offset];
+    inode block[BLOCKSIZE / sizeof(inode)];
+    read_block(block, block_num);
+    inode inode;
     inode.inode_num = inode_num;
     inode.index_block_num = index_block_num;
     inode.st_size = 0;
     block[offset] = inode;
     write_block(block, block_num);
-    free(block);
     return inode;
 }
 
 inode _get_inode(int inode_num) {
-    int i = inode_num / sizeof(inode);
-    int offset = inode_num % sizeof(inode);
+    int inodes_per_block = BLOCKSIZE / sizeof(inode);
+    int i = inode_num / inodes_per_block;
+    int offset = inode_num % inodes_per_block;
     int block_num = BLOCK_INODE_TABLE_START + i;
     assert(block_num <= BLOCK_INODE_TABLE_END);
-    inode *block = malloc_and_read_block(block_num);
+    inode block[BLOCKSIZE / sizeof(inode)];
+    read_block(block, block_num);
     inode inode = block[offset];
-    free(block);
     return inode;
 }
 
-void _save_inode(inode f) {
-    int inode_num = f.inode_num;
-    int i = inode_num / sizeof(inode);
-    int offset = inode_num % sizeof(inode);
+void _save_inode(inode ino) {
+    int inodes_per_block = BLOCKSIZE / sizeof(inode);
+    int i = ino.inode_num / inodes_per_block;
+    int offset = ino.inode_num % inodes_per_block;
     int block_num = BLOCK_INODE_TABLE_START + i;
     assert(block_num <= BLOCK_INODE_TABLE_END);
-    inode *block = malloc_and_read_block(block_num);
-    block[offset] = f;
+    inode block[BLOCKSIZE / sizeof(inode)];
+    read_block(block, block_num);
+    block[offset] = ino;
     write_block(block, block_num);
-    free(block);
 }
 
 int _create_index_block() {
     int block_num = _allocate_bit(BLOCK_BITMAP);
-    printf("block num: %d\n", block_num);
+    // printf("block num: %d\n", block_num);
     if (block_num == -1) {
         return -1;
     }
@@ -279,17 +273,17 @@ int _create_index_block() {
 }
 
 void print_root_dir() {
-    direntry *root_block = malloc_and_read_block(BLOCK_ROOT_DIR);
+    direntry root_block[BLOCKSIZE / sizeof(direntry)];
+    read_block(root_block, BLOCK_ROOT_DIR);
     printf("Root Directory\n");
     for (int i = 0; i < MAX_NUM_FILES; i++) {
         direntry f = root_block[i];
         if (is_inode_free(i)) {
             continue;
         }
-        inode inode = _get_inode(f.inode_num);
-        printf("i: %d, inode_num: %d, name: %s | inode - inode_num: %d, size: %d\n", i, f.inode_num, f.filename, inode.inode_num, inode.st_size);
+        inode inode = _get_inode(i);
+        printf("i: %d, name: %s | inode - inode_num: %d, size: %d\n", i, f.filename, inode.inode_num, inode.st_size);
     }
-    free(root_block);
 }
 
 void print_block_num(int block_num) {
@@ -300,7 +294,8 @@ void print_block_num(int block_num) {
 }
 
 void print_block(char *block) {
-    for (int i = 0; i < BLOCKSIZE; i++) {
+    for (int i = 0; i < 1000; i++) {
+        // for (int i = 0; i < BLOCKSIZE; i++) {
         if (block[i] == 0) {
             printf("\\0");
         } else {
@@ -354,6 +349,18 @@ int _get_data_block(inode f, int idx, void *out) {
     read_block(out, data_block_num);
     free(index_block);
     return data_block_num;
+}
+
+// Write contents of the buffer to the data block, starting from block offset. Writes up to size or the number of free bytes in the data block, returns the number of bytes written.
+int _write_data_block(int data_block_num, int block_offset, const char *buf, int size) {
+    char cur_data_block[BLOCKSIZE];
+    read_block(cur_data_block, data_block_num);
+    int num_free_bytes = BLOCKSIZE - block_offset;
+    int write_amount = min(size, num_free_bytes);
+    // Write it
+    memcpy(&cur_data_block[block_offset], buf, write_amount);
+    write_block(cur_data_block, data_block_num);
+    return write_amount;
 }
 
 bool _bit_get(const char *block, int i) {
@@ -433,10 +440,10 @@ int _free_bit(int block_num, int idx) {
     if (idx < 0 || idx >= bound) {
         return -1;
     }
-    char *block = malloc_and_read_block(block_num);
+    char block[BLOCKSIZE / sizeof(char)];
+    read_block(block, block_num);
     _bit_set(block, idx, 0);
     write_block(block, block_num);
-    free(block);
     return 0;
 }
 
@@ -444,21 +451,39 @@ int _free_bit(int block_num, int idx) {
 // Returns a -1 when there is not enough space for one of the two operations
 int _allocate_data_block(inode inode) {
     int index_block_num = inode.index_block_num;
-    int *index_block = malloc_and_read_block(index_block_num);
+    int index_block[BLOCKSIZE / sizeof(int)];
+    read_block(index_block, index_block_num);
     int free_idx = _get_free_index_entry(index_block);
     if (free_idx == -1) {
-        free(index_block);
         return -1;
     }
     int free_data_block_num = _allocate_bit(BLOCK_BITMAP);
     if (free_data_block_num == -1) {
-        free(index_block);
         return -1;
     }
     index_block[free_idx] = free_data_block_num;
     write_block(index_block, index_block_num);
-    free(index_block);
     return free_data_block_num;
+}
+
+// Find a zero bit in the bitmap, set it to 1 and return the index
+// Returns -1 when there's no free entry
+// The size of the bitmap should be BLOCKSIZE
+// Does not save to disk
+int _allocate_entry(char *bitmap) {
+    for (int i = 0; i < BLOCKSIZE * 8; i++) {
+        if (_bit_get(bitmap, i) == false) {
+            _bit_set(bitmap, i, 1);
+            return i;
+        }
+    }
+    return -1;
+}
+
+// Frees an entry in the bitmap by setting it to 1
+// Does not save on disk
+void _free_entry(char *bitmap, int i) {
+    _bit_set(bitmap, i, 0);
 }
 
 int _get_free_index_entry(int *index_block) {
@@ -516,6 +541,14 @@ void *malloc_block() {
 
 int min(int a, int b) {
     if (a <= b) {
+        return a;
+    } else {
+        return b;
+    }
+}
+
+int max(int a, int b) {
+    if (a >= b) {
         return a;
     } else {
         return b;

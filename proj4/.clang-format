@@ -1,5 +1,6 @@
 IndentWidth: 4
 ColumnLimit: 0
+AllowShortIfStatementsOnASingleLine: WithoutElse
 # These don't work
 # Cpp11BracedListStyle: true
 # BreakArrays: false

@@ -53,12 +53,6 @@ int mfs_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *_) 
         stbuf->st_nlink = 2;
         return 0;
     }
-    if (strcmp(path, "/hello") == 0) {
-        stbuf->st_mode = S_IFREG | 0777;
-        stbuf->st_nlink = 1;
-        stbuf->st_size = 20;
-        return 0;
-    }
     const char *filename = &path[1];
     inode f;
     res = get_inode(filename, &f);
@@ -83,14 +77,13 @@ int mfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
     // If . and .. are removed cd .. etc still works, they just won't be displayed
     filler(buf, ".", NULL, 0, 0);
     filler(buf, "..", NULL, 0, 0);
-    filler(buf, "hello", NULL, 0, 0);
     direntry *root = malloc_and_read_block(BLOCK_ROOT_DIR);
     for (int i = 0; i < MAX_NUM_FILES; i++) {
         direntry f = root[i];
         if (is_inode_free(i)) {
             continue;
         }
-        printf("file: %s\n", f.filename);
+        // printf("file: %s\n", f.filename);
         filler(buf, f.filename, NULL, 0, 0);
     }
     free(root);
@@ -144,20 +137,8 @@ int mfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
 int mfs_write(const char *path, const char *buf, size_t size,
               off_t offset, struct fuse_file_info *fi) {
     const char *filename = &path[1];
-    // int inode_num = _find_inode_num(filename);
-    // assert(inode_num != -1);
-    // inode inode = _get_inode(inode_num);
-    int num_written = append_to_file(filename, buf, size);
-
-    // Make sure we have an index file
-    // While there is data left to write
-    // If you don't have a free data file create one
-    // Write it into the data file
-    //
-    // Free data file (we need a size attribute on the inode)
-    // Size // block size is the index of the data block
-    // Size % block size is the empty part of this data block
-    return num_written;
+    int res = write_file(filename, buf, size, offset);
+    return res;
 }
 
 int mfs_init() {
@@ -168,7 +149,7 @@ int mfs_init() {
     bzero(buffer, BLOCKSIZE);
     write_block(buffer, 0); // write superblock info
                             // TODO remove
-    for (int i = 0; i < BLOCK_DATA_START; i++) {
+    for (int i = 0; i < 1000; i++) {
         write_block(buffer, i); // write superblock info
     }
     char *bitmap_block = malloc_block();
@@ -200,25 +181,24 @@ int main(int argc, char *argv[]) {
     printf("initialized the file system\n");
     fflush(stdout);
 
-    int i = create_file("zubi");
-    // This dubidubidubi fucks shit up bad, it makes the whole inode map be FFFFF
-    i = create_file("DUBIDUBIDUBI");
-    printf("new file: %d\n", i);
-    char *buf = "Hello world";
-    int num_appended = append_to_file("zubi", buf, 12);
-    num_appended = append_to_file("zubi", buf, 12);
-    num_appended = append_to_file("zubi", buf, 12);
-    printf("Num Bytes Written: %d\n", num_appended);
-    inode f1;
-    int res = get_inode("zubi", &f1);
-    char *data = malloc_block();
-    _get_data_block(f1, 0, data);
-    printf("Printing block for zubi\n");
-    print_block(data);
-    printf("Printed block\n");
-    printf("Size for zubi inode: %d\n", f1.st_size);
-
-    free(data);
+    // int i = create_file("zubi");
+    // i = create_file("DUBIDUBIDUBI");
+    // printf("new file: %d\n", i);
+    // char *buf = "Hello world";
+    // int num_appended = append_to_file("zubi", buf, 12);
+    // num_appended = append_to_file("zubi", buf, 12);
+    // num_appended = append_to_file("zubi", buf, 12);
+    // printf("Num Bytes Written: %d\n", num_appended);
+    // inode f1;
+    // int res = get_inode("zubi", &f1);
+    // char *data = malloc_block();
+    // _get_data_block(f1, 0, data);
+    // printf("Printing block for zubi\n");
+    // print_block(data);
+    // printf("Printed block\n");
+    // printf("Size for zubi inode: %d\n", f1.st_size);
+    //
+    // free(data);
 
     fuse_main(argc, argv, &mfs_oper, NULL);
 
